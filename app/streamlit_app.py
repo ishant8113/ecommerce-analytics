@@ -13,8 +13,24 @@ import streamlit as st
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH  = os.path.join(BASE_DIR, 'data', 'ecommerce.db')
 # Auto setup if DB doesn't exist
-if not os.path.exists(DB_PATH):
-    st.info("⏳ Setting up database for first time — takes 2-3 minutes...")
+# ─────────────────────────────────────────
+# AUTO SETUP — checks all tables exist
+# ─────────────────────────────────────────
+def needs_setup():
+    if not os.path.exists(DB_PATH):
+        return True
+    try:
+        con = duckdb.connect(DB_PATH, read_only=True)
+        tables = con.execute("SHOW TABLES").df()['name'].tolist()
+        con.close()
+        required = ['executive_summary', 'stg_order_details',
+                    'customer_rfm', 'product_performance', 'copurchase_rules']
+        return not all(t in tables for t in required)
+    except:
+        return True
+
+if needs_setup():
+    st.info("⏳ Setting up database — takes 2-3 minutes...")
     os.makedirs(os.path.join(BASE_DIR, 'data'), exist_ok=True)
     sys.path.insert(0, BASE_DIR)
     try:
