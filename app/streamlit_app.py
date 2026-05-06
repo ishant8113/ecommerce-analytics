@@ -12,7 +12,16 @@ import streamlit as st
 # ─────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH  = os.path.join(BASE_DIR, 'data', 'ecommerce.db')
-
+# Auto setup if DB doesn't exist
+if not os.path.exists(DB_PATH):
+    st.info("⏳ Setting up database for first time — takes 2-3 minutes...")
+    os.makedirs(os.path.join(BASE_DIR, 'data'), exist_ok=True)
+    sys.path.insert(0, BASE_DIR)
+    from app.setup_db import setup
+    setup()
+    st.success("✅ Setup complete!")
+    st.rerun()
+    
 st.set_page_config(
     page_title = "E-Commerce Analytics",
     page_icon  = "🛒",
