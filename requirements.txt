@@ -1,0 +1,12 @@
+streamlit
+pandas
+numpy
+duckdb
+plotly
+scikit-learn
+pyarrow
+mlxtend
+matplotlib
+seaborn
+jinja2
+dbt-duckdb

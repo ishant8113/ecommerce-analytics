@@ -1,0 +1,10 @@
+venv/
+data/ecommerce.db
+data/*.parquet
+data/*.png
+__pycache__/
+.ipynb_checkpoints/
+dbt_project/target/
+dbt_project/logs/
+dbt_project/dbt_packages/
+logs/
