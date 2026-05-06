@@ -17,10 +17,14 @@ if not os.path.exists(DB_PATH):
     st.info("⏳ Setting up database for first time — takes 2-3 minutes...")
     os.makedirs(os.path.join(BASE_DIR, 'data'), exist_ok=True)
     sys.path.insert(0, BASE_DIR)
-    from app.setup_db import setup
-    setup()
-    st.success("✅ Setup complete!")
-    st.rerun()
+    try:
+        from app.setup_db import setup
+        setup()
+        st.success("✅ Setup complete!")
+        st.rerun()
+    except Exception as e:
+        st.error(f"❌ Setup failed: {e}")
+        st.stop()
     
 st.set_page_config(
     page_title = "E-Commerce Analytics",
@@ -34,13 +38,19 @@ st.set_page_config(
 @st.cache_data
 def load_data():
     con = duckdb.connect(DB_PATH, read_only=True)
-
-    exec_df   = con.execute("SELECT * FROM executive_summary").df()
-    orders_df = con.execute("SELECT * FROM stg_order_details").df()
-    rfm_df    = con.execute("SELECT * FROM customer_rfm").df()
-    prod_df   = con.execute("SELECT * FROM product_performance").df()
-    pairs_df  = con.execute("SELECT * FROM copurchase_rules").df()
-
+    try:
+        exec_df   = con.execute("SELECT * FROM executive_summary").df()
+        orders_df = con.execute("SELECT * FROM stg_order_details").df()
+        rfm_df    = con.execute("SELECT * FROM customer_rfm").df()
+        prod_df   = con.execute("SELECT * FROM product_performance").df()
+        pairs_df  = con.execute("SELECT * FROM copurchase_rules").df()
+    except Exception as e:
+        # Show which tables exist
+        tables = con.execute("SHOW TABLES").df()
+        st.error(f"Missing table error: {e}")
+        st.write("Tables that exist:", tables)
+        con.close()
+        st.stop()
     con.close()
     return exec_df, orders_df, rfm_df, prod_df, pairs_df
 
