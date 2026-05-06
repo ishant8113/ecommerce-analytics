@@ -171,7 +171,61 @@ def setup():
            MAX(order_purchase_timestamp)     AS last_order_date
     FROM stg_order_details
     """)
+# Build co-purchase rules
+    from itertools import combinations
+    from collections import Counter
 
+    print("Building co-purchase rules...")
+
+    # Load order + product data
+    df = con.execute("""
+        SELECT d.order_id, p.category_english AS category
+        FROM stg_order_details d
+        LEFT JOIN stg_products p ON d.product_id = p.product_id
+        WHERE p.category_english IS NOT NULL
+          AND p.category_english != 'unknown'
+    """).df()
+
+    # Find multi-item orders
+    order_cats   = df.groupby('order_id')['category'].apply(list)
+    multi_orders = order_cats[order_cats.apply(len) >= 2]
+
+    # Count pairs
+    pair_counts = Counter()
+    for cats in multi_orders:
+        for pair in combinations(sorted(set(cats)), 2):
+            pair_counts[pair] += 1
+
+    total_orders = len(order_cats)
+    cat_counts   = df.groupby('category')['order_id'].nunique()
+
+    pairs_list = []
+    for (a, b), count in pair_counts.most_common():
+        if count >= 10:
+            p_a  = cat_counts.get(a, 1) / total_orders
+            p_b  = cat_counts.get(b, 1) / total_orders
+            p_ab = count / total_orders
+            pairs_list.append({
+                'category_a'  : a,
+                'category_b'  : b,
+                'co_purchases': count,
+                'support_pct' : round(p_ab * 100, 3),
+                'confidence'  : round(count / cat_counts.get(a, 1), 4),
+                'lift'        : round(p_ab / (p_a * p_b), 4)
+            })
+
+    pairs_df = pd.DataFrame(pairs_list)
+
+    # Save to parquet then DuckDB
+    parquet = os.path.join(DATA_DIR, 'copurchase_rules.parquet')
+    pairs_df.to_parquet(parquet, index=False)
+
+    con.execute("DROP TABLE IF EXISTS copurchase_rules")
+    con.execute(f"""
+        CREATE TABLE copurchase_rules AS
+        SELECT * FROM read_parquet('{parquet.replace(chr(92),'/')}')
+    """)
+    print(f"✅ copurchase_rules — {len(pairs_df)} pairs")
     con.close()
     print("✅ All tables built successfully")
 
