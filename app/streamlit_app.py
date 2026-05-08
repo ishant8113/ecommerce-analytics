@@ -24,7 +24,7 @@ def needs_setup():
         tables = con.execute("SHOW TABLES").df()['name'].tolist()
         con.close()
         required = ['executive_summary', 'stg_order_details',
-                    'customer_rfm', 'product_performance', 'copurchase_rules']
+                    'customer_rfm', 'product_performance', 'copurchase_rules', 'cohort_retention']
         return not all(t in tables for t in required)
     except:
         return True

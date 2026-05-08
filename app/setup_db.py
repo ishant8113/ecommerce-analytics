@@ -226,6 +226,69 @@ def setup():
         SELECT * FROM read_parquet('{parquet.replace(chr(92),'/')}')
     """)
     print(f"✅ copurchase_rules — {len(pairs_df)} pairs")
+    
+    # Cohort retention
+    from itertools import combinations
+    import pandas as pd
+
+    print("Building cohort retention...")
+    df_cohort = con.execute("""
+        SELECT customer_unique_id,
+               order_id,
+               order_purchase_timestamp,
+               payment_value
+        FROM stg_order_details
+        WHERE order_purchase_timestamp IS NOT NULL
+    """).df()
+
+    df_cohort['order_purchase_timestamp'] = pd.to_datetime(
+        df_cohort['order_purchase_timestamp']
+    )
+    df_cohort['order_month'] = (
+        df_cohort['order_purchase_timestamp']
+        .dt.to_period('M')
+    )
+
+    first_purchase = (
+        df_cohort.groupby('customer_unique_id')['order_month']
+        .min()
+        .reset_index()
+    )
+    first_purchase.columns = ['customer_unique_id','cohort_month']
+
+    df_cohort = df_cohort.merge(first_purchase, on='customer_unique_id')
+    df_cohort['cohort_index'] = (
+        df_cohort['order_month'] - df_cohort['cohort_month']
+    ).apply(lambda x: x.n)
+
+    cohort_pivot = (
+        df_cohort.groupby(['cohort_month','cohort_index'])
+        ['customer_unique_id'].nunique()
+        .reset_index()
+    )
+    cohort_matrix = cohort_pivot.pivot(
+        index='cohort_month',
+        columns='cohort_index',
+        values='customer_unique_id'
+    ).iloc[:-3]
+
+    cohort_size   = cohort_matrix[0]
+    retention_pct = (
+        cohort_matrix.divide(cohort_size, axis=0).round(3) * 100
+    )
+
+    cohort_save = retention_pct.reset_index()
+    cohort_save['cohort_month'] = cohort_save['cohort_month'].astype(str)
+
+    parquet = os.path.join(DATA_DIR, 'cohort_retention.parquet')
+    cohort_save.to_parquet(parquet, index=False)
+
+    con.execute("DROP TABLE IF EXISTS cohort_retention")
+    con.execute(f"""
+        CREATE TABLE cohort_retention AS
+        SELECT * FROM read_parquet('{parquet.replace(chr(92),'/')}')
+    """)
+    print(f"✅ cohort_retention — {len(cohort_save)} cohorts")
     con.close()
     print("✅ All tables built successfully")
 
