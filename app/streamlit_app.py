@@ -738,7 +738,7 @@ elif page == "⭐ Review Analytics":
     
     
 # ═══════════════════════════════════════════════════════
-# PAGE 5 — COHORT ANALYSIS
+# PAGE 5 — COHORT RETENTION
 # ═══════════════════════════════════════════════════════
 elif page == "🔄 Cohort Retention":
     st.title("🔄 Cohort Retention Analysis")

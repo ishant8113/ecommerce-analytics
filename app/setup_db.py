@@ -229,8 +229,8 @@ def setup():
     
     # Cohort retention
     from itertools import combinations
-    import pandas as pd
-
+    import importlib
+    pd = importlib.import_module('pandas')
     print("Building cohort retention...")
     df_cohort = con.execute("""
         SELECT customer_unique_id,
