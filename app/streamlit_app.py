@@ -71,7 +71,6 @@ def load_data():
     return exec_df, orders_df, rfm_df, prod_df, pairs_df
 
 exec_df, orders_df, rfm_df, prod_df, pairs_df = load_data()
-cohort_df = load_cohort()
 
 # ─────────────────────────────────────────
 #  LOAD COHORT
@@ -82,6 +81,7 @@ def load_cohort():
     df  = con.execute("SELECT * FROM cohort_retention").df()
     con.close()
     return df
+cohort_df = load_cohort() 
 # ─────────────────────────────────────────
 # SIDEBAR
 # ─────────────────────────────────────────
