@@ -71,7 +71,17 @@ def load_data():
     return exec_df, orders_df, rfm_df, prod_df, pairs_df
 
 exec_df, orders_df, rfm_df, prod_df, pairs_df = load_data()
+cohort_df = load_cohort()
 
+# ─────────────────────────────────────────
+#  LOAD COHORT
+# ─────────────────────────────────────────
+@st.cache_data
+def load_cohort():
+    con = duckdb.connect(DB_PATH, read_only=True)
+    df  = con.execute("SELECT * FROM cohort_retention").df()
+    con.close()
+    return df
 # ─────────────────────────────────────────
 # SIDEBAR
 # ─────────────────────────────────────────
@@ -88,7 +98,9 @@ page = st.sidebar.radio(
         "👥 Customer Segments",
         "🛍️ Product Intelligence",
         "🤝 Recommendations",
-        "⭐ Review Analytics"
+        "⭐ Review Analytics",
+        "🔄 Cohort Retention",         
+        "💡 Business Recommendations" 
     ]
 )
 
@@ -723,3 +735,150 @@ elif page == "⭐ Review Analytics":
                       xaxis_title='Late Delivery %',
                       yaxis_title='')
     st.plotly_chart(fig, use_container_width=True)
+    
+    
+# ═══════════════════════════════════════════════════════
+# PAGE 5 — COHORT ANALYSIS
+# ═══════════════════════════════════════════════════════
+elif page == "🔄 Cohort Retention":
+    st.title("🔄 Cohort Retention Analysis")
+    st.markdown("Track what % of customers return month after month.")
+    st.markdown("---")
+
+    cohort_df = load_cohort()
+
+    st.info(
+        "📌 Each row = group of customers who made their **first purchase** "
+        "in that month. Each column = % who came back N months later."
+    )
+
+    st.subheader("Monthly Retention Heatmap")
+    numeric_cols = [c for c in cohort_df.columns if c != 'cohort_month']
+    display_cols = [c for c in numeric_cols if int(c) <= 12]
+
+    plot_df = cohort_df.set_index('cohort_month')[display_cols]
+
+    fig = px.imshow(
+        plot_df,
+        color_continuous_scale='YlOrRd_r',
+        text_auto='.1f',
+        aspect='auto',
+        labels={'color':'Retention %',
+                'x':'Months Since First Purchase',
+                'y':'Cohort Month'}
+    )
+    fig.update_layout(height=550)
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Avg retention curve
+    st.subheader("Average Retention Curve")
+    avg_ret = plot_df.mean().reset_index()
+    avg_ret.columns = ['month','retention_pct']
+    avg_ret['month'] = avg_ret['month'].astype(int)
+
+    fig = px.line(
+        avg_ret, x='month', y='retention_pct',
+        markers=True,
+        color_discrete_sequence=['#E07B54'],
+        labels={'month':'Months Since First Purchase',
+                'retention_pct':'Avg Retention %'}
+    )
+    fig.update_layout(height=380)
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Key stats
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        kpi("Month 1 Retention",
+            f"{plot_df['1'].mean():.1f}%",
+            "Avg across all cohorts", "#E07B54")
+    with col2:
+        kpi("Month 3 Retention",
+            f"{plot_df['3'].mean():.1f}%",
+            "Avg across all cohorts", "#F0AD4E")
+    with col3:
+        kpi("Month 6 Retention",
+            f"{plot_df['6'].mean():.1f}%",
+            "Avg across all cohorts", "#5C9BD4")
+
+# ═══════════════════════════════════════════════════════
+# PAGE 5 — BUSINESS RECOMMENDATIONS
+# ═══════════════════════════════════════════════════════
+elif page == "💡 Business Recommendations":
+    st.title("💡 Business Recommendations")
+    st.markdown(
+        "Data-driven actions for Olist based on analysis findings."
+    )
+    st.markdown("---")
+
+    recs = [
+        {
+            "icon"    : "🚚",
+            "title"   : "Reduce Late Deliveries to Protect Revenue",
+            "finding" : "7.91% late delivery rate. 1-star reviews average 21 days delivery vs 10 days for 5-star reviews.",
+            "action"  : "Identify top 20 seller-carrier combinations driving most delays. Implement SLA penalties for carriers exceeding 15-day delivery. Target: reduce late rate from 7.91% to under 5%.",
+            "impact"  : "Protecting ~7,600 customer relationships per year. Each saved customer worth avg R$ 200 LTV = R$ 1.52M revenue protected.",
+            "color"   : "#E07B54"
+        },
+        {
+            "icon"    : "🎯",
+            "title"   : "Reactivate Cant Lose Them Segment",
+            "finding" : "13,250 high-value customers (avg R$ 306 spend) inactive for 500+ days.",
+            "action"  : "Launch personalised email campaign with 15% discount and 30-day expiry. A/B test 3 variants: discount only vs discount + loyalty points vs free shipping.",
+            "impact"  : "Even 10% reactivation = 1,325 customers × R$ 306 = R$ 405,450 recovered revenue.",
+            "color"   : "#F0AD4E"
+        },
+        {
+            "icon"    : "🛍️",
+            "title"   : "Launch Cross-Category Bundling Campaign",
+            "finding" : "90% of orders are single-category. Only 9,492 of 95,146 orders (10%) contain multiple categories.",
+            "action"  : "Create product bundles for top co-purchase pairs: bed_bath_table + furniture_decor, baby + toys, health_beauty + perfumery. Offer 5-10% bundle discount at checkout.",
+            "impact"  : "Increasing multi-category rate from 10% to 15% = 4,757 additional cross-sell orders at avg R$ 200 = R$ 951,400 additional revenue.",
+            "color"   : "#5CB85C"
+        },
+        {
+            "icon"    : "📅",
+            "title"   : "Maximise Monday Afternoon Promotions",
+            "finding" : "Peak order time is Monday at 16:00. Highest order volume day is Monday.",
+            "action"  : "Schedule flash sales, push notifications and email campaigns to land Monday between 14:00-17:00. Avoid Friday/weekend promotions which show lowest conversion.",
+            "impact"  : "Shifting 5% of off-peak orders to peak windows = better inventory planning and potentially 3-5% conversion uplift.",
+            "color"   : "#9B59B6"
+        },
+        {
+            "icon"    : "⭐",
+            "title"   : "Invest in High-Revenue Low-Rating Categories",
+            "finding" : "bed_bath_table generates R$ 1.69M revenue but avg rating of only 3.90 — below platform average of 4.08.",
+            "action"  : "Audit top 50 sellers in bed_bath_table category. Implement seller quality score. Remove sellers with 3+ consecutive months below 3.5 rating. Incentivise top-rated sellers with lower commission.",
+            "impact"  : "Improving bed_bath_table rating from 3.90 to 4.10 (platform avg) would likely reduce churn in this category and protect R$ 1.69M revenue base.",
+            "color"   : "#5C9BD4"
+        },
+    ]
+
+    for rec in recs:
+        st.markdown(
+            f"""
+            <div style="border-left: 5px solid {rec['color']};
+                        background: #f8f9fa;
+                        padding: 16px 20px;
+                        border-radius: 8px;
+                        margin-bottom: 16px">
+                <div style="font-size:18px;font-weight:700;
+                            color:#222;margin-bottom:8px">
+                    {rec['icon']} {rec['title']}
+                </div>
+                <div style="font-size:13px;color:#555;
+                            margin-bottom:6px">
+                    <b>📊 Finding:</b> {rec['finding']}
+                </div>
+                <div style="font-size:13px;color:#555;
+                            margin-bottom:6px">
+                    <b>🎯 Action:</b> {rec['action']}
+                </div>
+                <div style="font-size:13px;color:#2E7D32;
+                            font-weight:600">
+                    💰 Impact: {rec['impact']}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
